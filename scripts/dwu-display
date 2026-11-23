@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+set -u
+. "$(dirname "$(readlink -f "$0")")/../lib/dwu-common.sh"
+load_settings
+
+INTERNAL_PATTERN='^(eDP|LVDS|DSI)'
+SETTLE_SECONDS=1
+STATE_FILE="${XDG_RUNTIME_DIR:-/tmp}/dwu-display.state"
+
+connected() { xrandr --query | awk '/ connected/{print $1}'; }
+signature() { { connected; lid_state; } | tr '\n' ' '; }
+
+lid_state() {
+	local f
+	for f in /proc/acpi/button/lid/*/state; do
+		[ -f "$f" ] && awk '{print $2}' "$f" && return
+	done
+	printf 'open\n'
+}
+
+apply() {
+	local outputs internal="" externals=() out previous="" lid
+	outputs="$(connected)"
+	[ -n "$outputs" ] || return 0
+	lid="$(lid_state)"
+	for out in $outputs; do
+		if [[ "$out" =~ $INTERNAL_PATTERN ]]; then internal="$out"; else externals+=("$out"); fi
+	done
+
+	if [ "${#externals[@]}" -eq 0 ]; then
+		for out in $outputs; do xrandr --output "$out" --auto --primary; done
+		dwu-wallpaper apply
+		return
+	fi
+
+	case "$DISPLAY_MODE" in
+		mirror)
+			[ -n "$internal" ] && xrandr --output "$internal" --auto --primary
+			previous="$internal"
+			for out in "${externals[@]}"; do
+				xrandr --output "$out" --auto ${previous:+--same-as "$previous"}
+			done ;;
+		external)
+			[ -n "$internal" ] && xrandr --output "$internal" --off
+			for out in "${externals[@]}"; do
+				xrandr --output "$out" --auto ${previous:+--right-of "$previous"}
+				previous="$out"
+			done
+			xrandr --output "${externals[0]}" --primary ;;
+		*)
+			if [ -n "$internal" ]; then
+				if [ "$DISPLAY_LID_CLOSE_DISABLES_INTERNAL" = 1 ] && [ "$lid" = closed ]; then
+					xrandr --output "$internal" --off
+				else
+					xrandr --output "$internal" --auto --primary
+					previous="$internal"
+				fi
+			fi
+			for out in "${externals[@]}"; do
+				xrandr --output "$out" --auto ${previous:+--right-of "$previous"}
+				previous="$out"
+			done
+			[ -z "$internal" ] && xrandr --output "${externals[0]}" --primary ;;
+	esac
+	dwu-wallpaper apply
+}
+
+watch() {
+	signature > "$STATE_FILE"
+	xev -root -event randr 2>/dev/null | grep --line-buffered 'RRScreenChangeNotify' | while read -r _; do
+		sleep "$SETTLE_SECONDS"
+		if [ "$(signature)" != "$(cat "$STATE_FILE" 2>/dev/null)" ]; then
+			signature > "$STATE_FILE"
+			apply
+		fi
+	done
+}
+
+menu() {
+	local choice
+	choice="$(printf '  Extend (default)\n  Mirror\n  External only\n  Apply now\n' | pick 'display')" || return 0
+	choice="$(strip_icon "$choice")"
+	case "$choice" in
+		Extend*) save_setting DISPLAY_MODE extend ;;
+		Mirror) save_setting DISPLAY_MODE mirror ;;
+		External*) save_setting DISPLAY_MODE external ;;
+	esac
+	load_settings
+	apply
+}
+
+case "${1:-apply}" in
+	apply) apply; signature > "$STATE_FILE" ;;
+	watch) watch ;;
+	menu) menu ;;
+	*) log "usage: dwu-display [apply|watch|menu]"; exit 1 ;;
+esac

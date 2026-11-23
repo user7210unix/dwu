@@ -1,0 +1,97 @@
+# DWU zsh config, managed by install.sh (section zsh). Put your own tweaks in ~/.zshrc.
+# Colors use the terminal palette, so the prompt follows dwu-settings palette changes.
+
+export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
+export EDITOR="${EDITOR:-nano}"
+export PAGER="${PAGER:-less}"
+
+# history
+HISTFILE="${XDG_STATE_HOME:-$HOME/.local/state}/zsh/history"
+[[ -d "${HISTFILE:h}" ]] || mkdir -p "${HISTFILE:h}"
+HISTSIZE=50000
+SAVEHIST=50000
+setopt HIST_IGNORE_ALL_DUPS HIST_IGNORE_SPACE HIST_REDUCE_BLANKS SHARE_HISTORY EXTENDED_HISTORY
+
+# behaviour
+setopt AUTO_CD AUTO_PUSHD PUSHD_IGNORE_DUPS INTERACTIVE_COMMENTS PROMPT_SUBST NO_BEEP COMPLETE_IN_WORD
+
+# plugins
+_dwu_plugins="${XDG_DATA_HOME:-$HOME/.local/share}/dwu/zsh/plugins"
+[[ -d "$_dwu_plugins/zsh-completions/src" ]] && fpath=("$_dwu_plugins/zsh-completions/src" $fpath)
+
+# completion
+autoload -Uz compinit
+if [[ -n ${ZDOTDIR:-$HOME}/.zcompdump(#qN.mh+24) ]]; then compinit; else compinit -C; fi
+zstyle ':completion:*' menu select
+zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}' 'r:|=*' 'l:|=* r:|=*'
+zstyle ':completion:*' list-colors "${(s.:.)LS_COLORS}"
+zstyle ':completion:*' group-name ''
+zstyle ':completion:*:descriptions' format '%F{4}%d%f'
+
+# prompt, inspired by owl4ce's ar-round theme: one clean line on the left, rounded
+# pills on the right. Colors are the terminal palette so it follows dwu-settings.
+#   left:  [ branch*]  ❯          right: jobs  exit-code  [ dir ]
+_dwu_git() {
+	local branch dirty=""
+	branch="$(git symbolic-ref --short -q HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null)" || { _dwu_git_seg=""; return; }
+	git diff-index --quiet HEAD -- 2>/dev/null || dirty="%F{1}*"
+	_dwu_git_seg="%F{8}%K{8}%F{4} %F{7}${branch}${dirty}%k%F{8}%f "
+}
+precmd_functions+=(_dwu_git)
+
+if [[ $EUID -eq 0 ]]; then _dwu_symbol='%F{1}❯%f'; else _dwu_symbol='%F{5}❯%f'; fi
+_dwu_status='%(0?..%F{1} %?%f )'
+_dwu_jobs='%(1j.%F{2} %j%f .)'
+_dwu_dir='%F{8}%K{8}%F{7} %2~ %k%F{8}%f'
+PROMPT='${_dwu_git_seg}${_dwu_symbol} '
+RPROMPT='${_dwu_jobs}${_dwu_status}${_dwu_dir}'
+setopt TRANSIENT_RPROMPT
+zle_highlight=(default:bold)
+
+# window title: user@host dir
+precmd_functions+=(_dwu_title)
+_dwu_title() { print -Pn '\e]0;%n@%m %~\a'; }
+
+# keys
+bindkey -e
+bindkey '^[[H' beginning-of-line
+bindkey '^[[F' end-of-line
+bindkey '^[[3~' delete-char
+bindkey '^[[1;5C' forward-word
+bindkey '^[[1;5D' backward-word
+bindkey '^H' backward-kill-word
+
+# aliases
+alias ls='ls --color=auto'
+alias ll='ls -lah --color=auto'
+alias la='ls -A --color=auto'
+alias grep='grep --color=auto'
+alias ..='cd ..'
+alias ...='cd ../..'
+alias gs='git status -sb'
+alias gl='git log --oneline --graph --decorate -20'
+alias settings='dwu-settings'
+alias rebuild='dwu-rebuild'
+
+# autosuggestions
+if [[ -f "$_dwu_plugins/zsh-autosuggestions/zsh-autosuggestions.zsh" ]]; then
+	source "$_dwu_plugins/zsh-autosuggestions/zsh-autosuggestions.zsh"
+	ZSH_AUTOSUGGEST_STRATEGY=(history completion)
+	ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE='fg=8'
+	bindkey '^ ' autosuggest-accept
+fi
+
+# syntax highlighting must be sourced after the other plugins' widgets
+if [[ -f "$_dwu_plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]]; then
+	source "$_dwu_plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
+fi
+
+# history substring search, must come after syntax highlighting
+if [[ -f "$_dwu_plugins/zsh-history-substring-search/zsh-history-substring-search.zsh" ]]; then
+	source "$_dwu_plugins/zsh-history-substring-search/zsh-history-substring-search.zsh"
+	bindkey '^[[A' history-substring-search-up
+	bindkey '^[[B' history-substring-search-down
+	bindkey '^[OA' history-substring-search-up
+	bindkey '^[OB' history-substring-search-down
+fi
+unset _dwu_plugins

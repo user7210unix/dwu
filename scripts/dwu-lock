@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+. "$(dirname "$(readlink -f "$0")")/../lib/dwu-common.sh"
+load_settings
+load_palette "$PALETTE"
+if have slock; then exec slock
+elif have i3lock; then exec i3lock -n -c "${PALETTE_BG#\#}"
+elif have xsecurelock; then exec xsecurelock
+elif have xlock; then exec xlock
+else notify "no screen locker found, install slock or i3lock"
+fi

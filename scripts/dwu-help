@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+. "$(dirname "$(readlink -f "$0")")/../lib/dwu-common.sh"
+pick 'keybinds' < "$DWU_SRC/docs/keys.txt" >/dev/null

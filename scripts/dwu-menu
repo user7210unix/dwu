@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+. "$(dirname "$(readlink -f "$0")")/../lib/dwu-common.sh"
+choice="$(printf '  Applications\n  Files\n  Settings\n  Network\n  Display\n  Keybinds\n  Lock\n  Power\n' | pick 'dwu')" || exit 0
+choice="$(strip_icon "$choice")"
+case "$choice" in
+	Applications) exec dmenu_run -p run ;;
+	Files) exec dwu-files ;;
+	Settings) exec dwu-settings ;;
+	Network) exec dwu-network ;;
+	Display) exec dwu-display menu ;;
+	Keybinds) exec dwu-help ;;
+	Lock) exec dwu-lock ;;
+	Power) exec dwu-power ;;
+esac

@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+set -u
+. "$(dirname "$(readlink -f "$0")")/../lib/dwu-common.sh"
+load_settings
+load_palette "$PALETTE"
+
+PICTURES_DIR="${XDG_PICTURES_DIR:-$HOME/Pictures}"
+IMAGE_PATTERN='.*\.(jpg|jpeg|png|webp|bmp)$'
+
+set_image() {
+	if have feh; then feh --no-fehbg --bg-fill "$1"
+	elif have xwallpaper; then xwallpaper --zoom "$1"
+	elif have hsetroot; then hsetroot -fill "$1"
+	elif have nitrogen; then nitrogen --set-zoom-fill "$1"
+	else log "install feh to show images, using the palette color"; set_solid
+	fi
+}
+
+set_solid() {
+	local hex="${PALETTE_BG#\#}" ppm="$DWU_CONF_DIR/solid.ppm"
+	if have feh; then
+		printf 'P6\n1 1\n255\n\x%s\x%s\x%s' "${hex:0:2}" "${hex:2:2}" "${hex:4:2}" > "$ppm"
+		feh --no-fehbg --bg-scale "$ppm"
+	else
+		xsetroot -solid "$PALETTE_BG"
+	fi
+}
+
+apply() {
+	if [ "$WALLPAPER_MODE" = file ] && [ -f "$WALLPAPER_FILE" ]; then
+		set_image "$WALLPAPER_FILE"
+	else
+		set_solid
+	fi
+}
+
+choose_file() {
+	local file
+	mkdir -p "$PICTURES_DIR"
+	file="$(find "$PICTURES_DIR" -maxdepth 2 -type f -regextype posix-extended -iregex "$IMAGE_PATTERN" 2>/dev/null | sort | pick 'wallpaper')" || return 0
+	[ -n "$file" ] || return 0
+	save_setting WALLPAPER_MODE file
+	save_setting WALLPAPER_FILE "$file"
+	apply
+}
+
+browse() {
+	local out
+	have ranger || { notify "ranger is not installed"; return 0; }
+	out="$(mktemp)"
+	st -e ranger --choosefile="$out" "$PICTURES_DIR"
+	file="$(cat "$out")"; rm -f "$out"
+	[ -f "$file" ] || return 0
+	save_setting WALLPAPER_MODE file
+	save_setting WALLPAPER_FILE "$file"
+	apply
+}
+
+download() {
+	local url="${1:-}" ext target
+	[ -n "$url" ] || url="$(ask_text 'wallpaper url')"
+	[ -n "$url" ] || return 0
+	mkdir -p "$PICTURES_DIR"
+	ext="${url##*.}"; ext="${ext%%\?*}"
+	case "$ext" in jpg|jpeg|png|webp|bmp) ;; *) ext=jpg ;; esac
+	target="$PICTURES_DIR/dwu-wallpaper.$ext"
+	curl -fL -o "$target" "$url" || { notify "download failed"; return 0; }
+	save_setting WALLPAPER_MODE file
+	save_setting WALLPAPER_FILE "$target"
+	apply
+}
+
+menu() {
+	local choice
+	choice="$(printf '  Palette color (solid)\n  Choose from Pictures\n  Browse with ranger\n  Download from url\n' | pick 'wallpaper')" || return 0
+	choice="$(strip_icon "$choice")"
+	case "$choice" in
+		Palette*) save_setting WALLPAPER_MODE solid; apply ;;
+		Choose*) choose_file ;;
+		Browse*) browse ;;
+		Download*) download ;;
+	esac
+}
+
+case "${1:-apply}" in
+	apply) apply ;;
+	menu) menu ;;
+	solid) save_setting WALLPAPER_MODE solid; apply ;;
+	file) save_setting WALLPAPER_MODE file; save_setting WALLPAPER_FILE "${2:?path}"; apply ;;
+	url) download "${2:-}" ;;
+	*) log "usage: dwu-wallpaper [apply|menu|solid|file PATH|url URL]"; exit 1 ;;
+esac

@@ -1,0 +1,10 @@
+/* DWU userContent, Firefox's own pages only, websites are never touched */
+
+@-moz-document url(about:home), url(about:newtab), url(about:privatebrowsing) {
+	:root {
+		--newtab-background-color: @BG@ !important;
+		--newtab-background-color-secondary: @SURFACE@ !important;
+		--newtab-text-primary-color: @FG@ !important;
+		--newtab-primary-action-background: @ACCENT@ !important;
+	}
+}

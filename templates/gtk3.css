@@ -1,0 +1,91 @@
+/* DWU GTK3 style, generated from the active palette by dwu-settings.
+   Base theme is Adwaita, the named colors below recolor it. */
+@define-color theme_bg_color @BG@;
+@define-color theme_fg_color @FG@;
+@define-color theme_base_color @BG@;
+@define-color theme_text_color @FG@;
+@define-color theme_selected_bg_color @SELECT@;
+@define-color theme_selected_fg_color @FG@;
+@define-color theme_unfocused_bg_color @BG@;
+@define-color theme_unfocused_fg_color @DIM@;
+@define-color theme_unfocused_base_color @BG@;
+@define-color theme_unfocused_text_color @DIM@;
+@define-color theme_unfocused_selected_bg_color @SELECT@;
+@define-color theme_unfocused_selected_fg_color @FG@;
+@define-color insensitive_bg_color @SURFACE@;
+@define-color insensitive_fg_color @DIM@;
+@define-color insensitive_base_color @BG@;
+@define-color borders @SURFACE@;
+@define-color unfocused_borders @SURFACE@;
+@define-color content_view_bg @BG@;
+@define-color text_view_bg @BG@;
+@define-color warning_color @URGENT@;
+@define-color error_color @URGENT@;
+@define-color success_color @GREEN@;
+@define-color tooltip_bg_color @SURFACE@;
+@define-color tooltip_fg_color @FG@;
+
+window, .background, dialog { background-color: @BG@; color: @FG@; }
+
+/* flat bars, no gradients, no borders */
+headerbar, .titlebar, toolbar, .toolbar, menubar, .path-bar, actionbar, statusbar {
+	background: @BG@; background-image: none; border: none; box-shadow: none; color: @FG@;
+}
+toolbar, .toolbar { padding: 4px 6px; }
+statusbar, .thunar statusbar { padding: 2px 8px; color: @DIM@; }
+
+button, .toolbar button, .path-bar button, headerbar button {
+	background: transparent; background-image: none; border: 1px solid transparent;
+	border-radius: 6px; box-shadow: none; text-shadow: none; color: @FG@;
+	padding: 3px 8px; min-height: 22px;
+}
+button:hover, toolbar button:hover { background-color: @SURFACE@; }
+button:checked, button:active, .path-bar button:checked { background-color: @SELECT@; color: @FG@; }
+button:disabled { color: @DIM@; }
+button.suggested-action { background-color: @ACCENT@; color: @BG@; }
+button.destructive-action { background-color: @URGENT@; color: @BG@; }
+
+entry, spinbutton, .search-bar entry {
+	background: @SURFACE@; background-image: none; color: @FG@;
+	border: 1px solid transparent; border-radius: 6px; box-shadow: none; padding: 3px 8px; min-height: 22px;
+}
+entry:focus, spinbutton:focus-within { border-color: @ACCENT@; }
+selection, entry selection, textview text selection { background-color: @ACCENT@; color: @BG@; }
+
+menu, .menu, .popup, popover, popover.background, .context-menu {
+	background: @BG@; color: @FG@; border: 1px solid @SURFACE@; border-radius: 8px; box-shadow: 0 4px 14px alpha(black, 0.35);
+}
+menu { padding: 4px; }
+menuitem { border-radius: 6px; padding: 4px 8px; }
+menuitem:hover, menuitem:selected { background-color: @SELECT@; color: @FG@; }
+separator { background-color: @SURFACE@; min-height: 1px; }
+tooltip, tooltip.background { background: @SURFACE@; color: @FG@; border-radius: 6px; border: none; }
+
+/* lists, tree views, icon views (Thunar's file area) */
+.view, treeview, iconview, list, row { background-color: @BG@; color: @FG@; }
+treeview.view { padding: 0; }
+treeview.view:selected, iconview:selected, .view:selected, row:selected, list row:selected {
+	background-color: @SELECT@; color: @FG@; border-radius: 6px;
+}
+treeview.view:hover, row:hover { background-color: alpha(@SURFACE@, 0.6); }
+treeview header button { background: @BG@; color: @DIM@; border-radius: 0; border-bottom: 1px solid @SURFACE@; }
+.sidebar, .sidebar .view, placessidebar, placessidebar list { background-color: @BG@; border: none; }
+paned > separator { background-color: @BG@; min-width: 1px; }
+
+scrollbar { background: transparent; border: none; }
+scrollbar slider { background-color: @SURFACE@; border-radius: 6px; min-width: 6px; min-height: 6px; border: none; }
+scrollbar slider:hover { background-color: @SELECT@; }
+scrollbar trough { background: transparent; }
+
+notebook, notebook > header, notebook > header > tabs > tab { background: @BG@; border: none; box-shadow: none; }
+notebook > header > tabs > tab { padding: 4px 10px; border-radius: 6px; color: @DIM@; }
+notebook > header > tabs > tab:checked { background: @SURFACE@; color: @FG@; }
+
+progressbar trough, scale trough { background-color: @SURFACE@; border-radius: 6px; border: none; }
+progressbar progress, scale highlight { background-color: @ACCENT@; border-radius: 6px; }
+switch { background: @SURFACE@; border: none; border-radius: 12px; }
+switch:checked { background: @ACCENT@; }
+switch slider { background: @FG@; border-radius: 12px; border: none; }
+checkbutton check, radiobutton radio { background: @SURFACE@; border: none; box-shadow: none; }
+checkbutton check:checked, radiobutton radio:checked { background: @ACCENT@; color: @BG@; }
+frame > border, scrolledwindow { border-color: @SURFACE@; }

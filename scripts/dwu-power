@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -u
+. "$(dirname "$(readlink -f "$0")")/../lib/dwu-common.sh"
+
+run_power() {
+	local action="$1"
+	if have systemctl && [ -d /run/systemd/system ]; then
+		case "$action" in suspend) systemctl suspend ;; reboot) systemctl reboot ;; poweroff) systemctl poweroff ;; esac
+	elif have loginctl; then
+		case "$action" in suspend) loginctl suspend ;; reboot) loginctl reboot ;; poweroff) loginctl poweroff ;; esac
+	else
+		case "$action" in
+			suspend) as_root zzz || as_root pm-suspend ;;
+			reboot) as_root reboot ;;
+			poweroff) as_root poweroff ;;
+		esac
+	fi
+}
+
+choice="$(printf '  Lock\n  Log out\n  Suspend\n  Reboot\n  Power off\n' | pick 'power')" || exit 0
+choice="$(strip_icon "$choice")"
+case "$choice" in
+	Lock) dwu-lock ;;
+	"Log out") pkill -x dwm ;;
+	Suspend) dwu-lock & sleep 1; run_power suspend ;;
+	Reboot) confirm "Reboot now?" n && run_power reboot ;;
+	"Power off") confirm "Power off now?" n && run_power poweroff ;;
+esac

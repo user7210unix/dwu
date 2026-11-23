@@ -1,0 +1,13 @@
+#!/bin/sh
+export XDG_CURRENT_DESKTOP=dwu
+export XDG_SESSION_DESKTOP=dwu
+export XDG_SESSION_TYPE=x11
+export _JAVA_AWT_WM_NONREPARENTING=1
+# slstatus, dmenu and keybinds call dwu-* by name, so make sure they are found
+export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
+config="${XDG_CONFIG_HOME:-$HOME/.config}/dwu"
+[ -f "$config/Xresources" ] && xrdb -merge "$config/Xresources"
+if [ -z "$DBUS_SESSION_BUS_ADDRESS" ] && command -v dbus-run-session >/dev/null 2>&1; then
+	exec dbus-run-session -- dwm
+fi
+exec dwm

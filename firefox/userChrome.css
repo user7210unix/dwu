@@ -1,0 +1,87 @@
+/* DWU userChrome, generated from the active palette by dwu-settings.
+   Deliberately conservative: it recolors Firefox through its own theme
+   variables and only adds small, safe tweaks (rounded tabs and urlbar).
+   Nothing is hidden or repositioned, so Firefox updates cannot break the layout. */
+
+:root {
+	--dwu-bg: @BG@;
+	--dwu-surface: @SURFACE@;
+	--dwu-select: @SELECT@;
+	--dwu-accent: @ACCENT@;
+	--dwu-fg: @FG@;
+	--dwu-dim: @DIM@;
+	--dwu-urgent: @URGENT@;
+	--dwu-radius: 8px;
+
+	/* toolbars and window */
+	--toolbar-bgcolor: var(--dwu-bg) !important;
+	--toolbar-color: var(--dwu-fg) !important;
+	--lwt-accent-color: var(--dwu-bg) !important;
+	--lwt-text-color: var(--dwu-fg) !important;
+	--toolbox-bgcolor: var(--dwu-bg) !important;
+	--toolbox-textcolor: var(--dwu-fg) !important;
+	--toolbox-non-lwt-bgcolor: var(--dwu-bg) !important;
+	--toolbox-non-lwt-textcolor: var(--dwu-fg) !important;
+	--toolbox-bgcolor-inactive: var(--dwu-bg) !important;
+	--toolbox-textcolor-inactive: var(--dwu-dim) !important;
+
+	/* tabs */
+	--tab-selected-bgcolor: var(--dwu-select) !important;
+	--tab-selected-textcolor: var(--dwu-fg) !important;
+	--tab-loading-fill: var(--dwu-accent) !important;
+	--lwt-tab-text: var(--dwu-dim) !important;
+	--tab-block-margin: 4px !important;
+	--tab-border-radius: var(--dwu-radius) !important;
+
+	/* urlbar and search */
+	--toolbar-field-background-color: var(--dwu-surface) !important;
+	--toolbar-field-color: var(--dwu-fg) !important;
+	--toolbar-field-border-color: transparent !important;
+	--toolbar-field-focus-background-color: var(--dwu-surface) !important;
+	--toolbar-field-focus-color: var(--dwu-fg) !important;
+	--toolbar-field-focus-border-color: var(--dwu-accent) !important;
+	--urlbar-box-bgcolor: var(--dwu-surface) !important;
+	--urlbar-box-hover-bgcolor: var(--dwu-select) !important;
+	--urlbar-box-active-bgcolor: var(--dwu-select) !important;
+	--urlbar-box-text-color: var(--dwu-fg) !important;
+
+	/* popups and panels */
+	--arrowpanel-background: var(--dwu-bg) !important;
+	--arrowpanel-color: var(--dwu-fg) !important;
+	--arrowpanel-border-color: var(--dwu-surface) !important;
+	--panel-background: var(--dwu-bg) !important;
+	--panel-color: var(--dwu-fg) !important;
+	--panel-border-color: var(--dwu-surface) !important;
+	--panel-item-hover-bgcolor: var(--dwu-select) !important;
+	--autocomplete-popup-background: var(--dwu-bg) !important;
+	--autocomplete-popup-color: var(--dwu-fg) !important;
+	--autocomplete-popup-highlight-background: var(--dwu-select) !important;
+	--autocomplete-popup-highlight-color: var(--dwu-fg) !important;
+
+	/* sidebar, buttons, focus */
+	--sidebar-background-color: var(--dwu-bg) !important;
+	--sidebar-text-color: var(--dwu-fg) !important;
+	--sidebar-border-color: var(--dwu-surface) !important;
+	--button-hover-bgcolor: var(--dwu-surface) !important;
+	--button-active-bgcolor: var(--dwu-select) !important;
+	--toolbarbutton-hover-background: var(--dwu-surface) !important;
+	--toolbarbutton-active-background: var(--dwu-select) !important;
+	--focus-outline-color: var(--dwu-accent) !important;
+	--toolbarseparator-color: var(--dwu-surface) !important;
+	--chrome-content-separator-color: var(--dwu-surface) !important;
+}
+
+/* font for the browser UI only, icons are SVG so they are not affected */
+:root { font-family: "@FONT@", system-ui, sans-serif; }
+
+/* soft rounded shapes */
+.tab-background { border-radius: var(--dwu-radius) !important; }
+#urlbar-background, #searchbar { border-radius: var(--dwu-radius) !important; border: 1px solid transparent !important; box-shadow: none !important; }
+#urlbar[focused="true"] > #urlbar-background, #urlbar[open] > #urlbar-background { border-color: var(--dwu-accent) !important; }
+.urlbarView-row[selected] { background-color: var(--dwu-select) !important; border-radius: 6px !important; }
+.urlbarView-url { color: var(--dwu-accent) !important; }
+.tabbrowser-tab:not([selected]):hover .tab-background { background-color: var(--dwu-surface) !important; }
+.tabbrowser-tab[selected] .tab-background { box-shadow: none !important; }
+
+/* thin separator under the toolbars instead of Firefox's default shadow */
+#navigator-toolbox { border-bottom: 1px solid var(--dwu-surface) !important; box-shadow: none !important; }

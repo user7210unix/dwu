@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+. "$(dirname "$(readlink -f "$0")")/../lib/dwu-common.sh"
+dir="${XDG_PICTURES_DIR:-$HOME/Pictures}/Screenshots"
+mkdir -p "$dir"
+file="$dir/$(date +%Y%m%d-%H%M%S).png"
+if have maim; then
+	if [ "${1:-}" = area ]; then maim -s "$file"; else maim "$file"; fi
+elif have scrot; then
+	if [ "${1:-}" = area ]; then scrot -s "$file"; else scrot "$file"; fi
+else
+	notify "install maim or scrot for screenshots"; exit 1
+fi
+[ -f "$file" ] || exit 0
+have xclip && xclip -selection clipboard -t image/png -i "$file"
+notify "Screenshot saved" "$file"

@@ -1,0 +1,48 @@
+Super + Return          terminal (st)
+Super + Space           launcher (dmenu)
+Super + p               launcher (dmenu)
+Super + w               Firefox
+Super + e               file manager (Thunar, ranger if Thunar is missing)
+Super + s               dwu-settings (palette, fonts, picom, wallpaper)
+Super + n               network and bluetooth menu
+Super + F8              display layout menu
+Super + F1              this list
+Super + Shift + e       power menu
+Super + Shift + x       lock screen
+Super + q               close window
+Super + j / k           focus next / previous window
+Super + Shift + j / k   move window down / up the stack
+Super + h / l           shrink / grow master area
+Super + Shift + h / l   grow / shrink focused window (cfact)
+Super + i / o           more / fewer master windows
+Super + Shift + Return  promote window to master
+Super + t               tiled layout
+Super + m               monocle layout
+Super + c               centered master layout
+Super + y               deck layout
+Super + r               spiral layout
+Super + Ctrl + , / .    cycle layouts
+Super + f               fullscreen
+Super + Shift + Space   toggle floating
+Super + Alt + h/j/k/l   move floating window
+Super + Alt + Shift + h/j/k/l   resize floating window
+Super + 1..9            view tag
+Super + Shift + 1..9    move window to tag
+Super + Ctrl + 1..9     toggle tag in view
+Super + 0               view all tags
+Super + Tab             previous tag set
+Super + [ / ]           previous / next tag
+Super + , / .           focus previous / next monitor
+Super + Shift + , / .   send window to previous / next monitor
+Super + backtick        scratchpad terminal
+Super + b               toggle bar
+Super + minus / equal   smaller / larger gaps
+Super + g               toggle gaps
+Super + u               jump to urgent window
+Super + Shift + F5      reload colors from Xresources
+Super + Shift + r       restart dwm, windows stay open
+Super + Ctrl + Shift + q  quit dwm
+Print / Shift + Print   screenshot full / area
+Shift + Page Up/Down   st scrollback
+Ctrl + Shift + Page Up/Down   st zoom
+Ctrl + Shift + o / p    st more / less transparent

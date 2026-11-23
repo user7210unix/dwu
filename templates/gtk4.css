@@ -1,0 +1,23 @@
+/* DWU GTK4 and libadwaita style, generated from the active palette by dwu-settings */
+@define-color window_bg_color @BG@;
+@define-color window_fg_color @FG@;
+@define-color view_bg_color @BG@;
+@define-color view_fg_color @FG@;
+@define-color headerbar_bg_color @BG@;
+@define-color headerbar_fg_color @FG@;
+@define-color headerbar_border_color @SURFACE@;
+@define-color card_bg_color @SURFACE@;
+@define-color card_fg_color @FG@;
+@define-color popover_bg_color @BG@;
+@define-color popover_fg_color @FG@;
+@define-color dialog_bg_color @BG@;
+@define-color dialog_fg_color @FG@;
+@define-color sidebar_bg_color @BG@;
+@define-color sidebar_fg_color @FG@;
+@define-color accent_bg_color @ACCENT@;
+@define-color accent_fg_color @BG@;
+@define-color accent_color @ACCENT@;
+@define-color destructive_bg_color @URGENT@;
+@define-color error_color @URGENT@;
+@define-color success_color @GREEN@;
+@define-color borders @SURFACE@;

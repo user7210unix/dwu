@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+. "$(dirname "$(readlink -f "$0")")/../lib/dwu-common.sh"
+
+VOLUME_STEP=5
+BRIGHTNESS_STEP=5
+VOLUME_LIMIT=1.0
+OSD_TAG="x-dunst-stack-tag:dwu-osd"
+
+osd() {
+	have notify-send || return 0
+	notify-send -a dwu -h "string:$OSD_TAG" -h "int:value:$2" -t 1200 "$1" "" 2>/dev/null
+}
+
+volume_percent() {
+	if have wpctl; then wpctl get-volume @DEFAULT_AUDIO_SINK@ | awk '{printf "%d", $2 * 100}'
+	elif have pactl; then pactl get-sink-volume @DEFAULT_SINK@ | awk -F'/' 'NR==1{gsub(/[ %]/,"",$2); print $2}'
+	else amixer get Master | awk -F'[][]' '/%/{gsub(/%/,"",$2); print $2; exit}'
+	fi
+}
+
+volume() {
+	case "$1" in
+		up) if have wpctl; then wpctl set-volume -l "$VOLUME_LIMIT" @DEFAULT_AUDIO_SINK@ "${VOLUME_STEP}%+"
+		    elif have pactl; then pactl set-sink-volume @DEFAULT_SINK@ "+${VOLUME_STEP}%"
+		    else amixer -q set Master "${VOLUME_STEP}%+"; fi ;;
+		down) if have wpctl; then wpctl set-volume @DEFAULT_AUDIO_SINK@ "${VOLUME_STEP}%-"
+		      elif have pactl; then pactl set-sink-volume @DEFAULT_SINK@ "-${VOLUME_STEP}%"
+		      else amixer -q set Master "${VOLUME_STEP}%-"; fi ;;
+		mute) if have wpctl; then wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
+		      elif have pactl; then pactl set-sink-mute @DEFAULT_SINK@ toggle
+		      else amixer -q set Master toggle; fi ;;
+	esac
+	osd "Volume" "$(volume_percent)"
+}
+
+brightness() {
+	if have brightnessctl; then
+		case "$1" in up) brightnessctl -q set "+${BRIGHTNESS_STEP}%" ;; down) brightnessctl -q set "${BRIGHTNESS_STEP}%-" ;; esac
+		osd "Brightness" "$(brightnessctl -m | awk -F, '{gsub(/%/,"",$4); print $4}')"
+	elif have light; then
+		case "$1" in up) light -A "$BRIGHTNESS_STEP" ;; down) light -U "$BRIGHTNESS_STEP" ;; esac
+	elif have xbacklight; then
+		case "$1" in up) xbacklight -inc "$BRIGHTNESS_STEP" ;; down) xbacklight -dec "$BRIGHTNESS_STEP" ;; esac
+	fi
+}
+
+case "${1:-}" in
+	volume-up) volume up ;;
+	volume-down) volume down ;;
+	volume-mute) volume mute ;;
+	mic-mute) if have wpctl; then wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle; else pactl set-source-mute @DEFAULT_SOURCE@ toggle; fi ;;
+	brightness-up) brightness up ;;
+	brightness-down) brightness down ;;
+	play-pause) playerctl play-pause ;;
+	next) playerctl next ;;
+	previous) playerctl previous ;;
+	*) log "usage: dwu-media volume-up|volume-down|volume-mute|mic-mute|brightness-up|brightness-down|play-pause|next|previous"; exit 1 ;;
+esac

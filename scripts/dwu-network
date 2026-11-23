@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+. "$(dirname "$(readlink -f "$0")")/../lib/dwu-common.sh"
+have nmcli || { notify "NetworkManager (nmcli) is not installed"; exit 1; }
+
+wifi_connect() {
+	local line ssid
+	nmcli device wifi rescan >/dev/null 2>&1
+	line="$(nmcli -t --escape no -f SIGNAL,SSID device wifi list \
+		| awk -F: '{ s=$1; sub(/^[^:]*:/, ""); if (length($0)) printf "%s%%  %s\n", s, $0 }' \
+		| sort -rn | awk '!seen[$0]++' | pick 'wifi')" || return 0
+	[ -n "$line" ] || return 0
+	ssid="${line#*  }"
+	nmcli device wifi connect "$ssid" 2>/dev/null || st -e nmcli --ask device wifi connect "$ssid"
+}
+
+choice="$(printf '  Connect to Wi-Fi\n  Wi-Fi on\n  Wi-Fi off\n  Bluetooth on\n  Bluetooth off\n  Connection editor\n' | pick 'network')" || exit 0
+choice="$(strip_icon "$choice")"
+case "$choice" in
+	"Connect to Wi-Fi") wifi_connect ;;
+	"Wi-Fi on") nmcli radio wifi on ;;
+	"Wi-Fi off") nmcli radio wifi off ;;
+	"Bluetooth on") have rfkill && rfkill unblock bluetooth; have bluetoothctl && bluetoothctl power on ;;
+	"Bluetooth off") have bluetoothctl && bluetoothctl power off ;;
+	"Connection editor") nm-connection-editor ;;
+esac

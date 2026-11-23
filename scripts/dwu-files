@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# File manager: Thunar when installed, ranger in a terminal otherwise
+if command -v thunar >/dev/null 2>&1; then exec thunar "$@"; fi
+exec st -e ranger "$@"

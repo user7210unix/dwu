@@ -1,0 +1,42 @@
+[global]
+    monitor = 0
+    follow = keyboard
+    width = (260, 380)
+    origin = top-right
+    offset = (14, 46)
+    padding = 14
+    horizontal_padding = 16
+    frame_width = 2
+    separator_color = frame
+    gap_size = 8
+    corner_radius = 8
+    font = @FONT@ @FONT_SIZE@
+    markup = full
+    format = "<b>%s</b>\n%b"
+    progress_bar_height = 8
+    progress_bar_frame_width = 0
+    icon_position = left
+    max_icon_size = 36
+    min_icon_size = 24
+    sort = yes
+    idle_threshold = 120
+    mouse_left_click = close_current
+    mouse_right_click = close_all
+
+[urgency_low]
+    background = "@BG@"
+    foreground = "@FG@"
+    frame_color = "@ACCENT@"
+    timeout = 4
+
+[urgency_normal]
+    background = "@BG@"
+    foreground = "@FG@"
+    frame_color = "@ACCENT@"
+    timeout = 6
+
+[urgency_critical]
+    background = "@BG@"
+    foreground = "@FG@"
+    frame_color = "@URGENT@"
+    timeout = 0

@@ -1,0 +1,249 @@
+#!/usr/bin/env bash
+# Prints the whole status line for slstatus. Which modules show is controlled by
+# BAR_* in ~/.config/dwu/settings.conf (dwu-settings -> Status bar).
+# usage: dwu-bar            full line
+#        dwu-bar <module>   a single module, for testing
+. "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../lib/dwu-common.sh"
+load_settings
+
+STATE="${XDG_RUNTIME_DIR:-/tmp}/dwu-bar-$UID"
+CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/dwu"
+mkdir -p "$STATE"
+
+I='^C4^'     # icon color
+T='^C15^'    # text color
+A='^C1^'     # alert color
+R='^d^'      # reset
+
+case "$BAR_SEP" in
+	pipe) SEP=" ^C8^│${R} " ;;
+	dot)  SEP=" ^C8^•${R} " ;;
+	slash) SEP=" ^C8^/${R} " ;;
+	*)    SEP="  " ;;
+esac
+
+# item <icon> <text> [color]
+item() { printf '%s%s %s%s%s' "${3:-$I}" "$1" "$T" "$2" "$R"; }
+
+m_weather() {
+	local w
+	[ -r "$CACHE/weather.txt" ] && read -r w < "$CACHE/weather.txt"
+	[ -n "$w" ] && printf '%s' "$w"
+}
+
+m_cpu() {
+	local u n s i w q sq total idle pt pi
+	read -r _ u n s i w q sq _ < /proc/stat
+	total=$((u + n + s + i + w + q + sq)); idle=$((i + w))
+	pt=$total; pi=$idle
+	[ -r "$STATE/cpu" ] && read -r pt pi < "$STATE/cpu"
+	printf '%s %s\n' "$total" "$idle" > "$STATE/cpu"
+	local dt=$((total - pt)) di=$((idle - pi))
+	local pct=0
+	[ "$dt" -gt 0 ] && pct=$(( (100 * (dt - di)) / dt ))
+	item "" "${pct}%"
+}
+
+m_ram() {
+	local k v total=0 avail=0
+	while read -r k v _; do
+		case "$k" in MemTotal:) total=$v ;; MemAvailable:) avail=$v; break ;; esac
+	done < /proc/meminfo
+	[ "$total" -gt 0 ] || return
+	item "" "$(( (100 * (total - avail)) / total ))%"
+}
+
+m_swap() {
+	local k v total=0 free=0
+	while read -r k v _; do
+		case "$k" in SwapTotal:) total=$v ;; SwapFree:) free=$v ;; esac
+	done < /proc/meminfo
+	[ "$total" -gt 0 ] || return
+	item "" "$(( (100 * (total - free)) / total ))%"
+}
+
+m_disk() {
+	local used
+	used="$(df -P / 2>/dev/null | awk 'NR==2{print $5}')"
+	[ -n "$used" ] && item "" "$used"
+}
+
+m_temp() {
+	local zone t c
+	if [ -r "$STATE/tempzone" ]; then read -r zone < "$STATE/tempzone"; fi
+	if [ -z "$zone" ] || [ ! -r "$zone" ]; then
+		zone=""
+		for t in /sys/class/thermal/thermal_zone*; do
+			[ -r "$t/temp" ] || continue
+			case "$(cat "$t/type" 2>/dev/null)" in x86_pkg_temp|k10temp|cpu*|coretemp|soc*) zone="$t/temp"; break ;; esac
+			[ -n "$zone" ] || zone="$t/temp"
+		done
+		[ -n "$zone" ] && printf '%s\n' "$zone" > "$STATE/tempzone"
+	fi
+	[ -n "$zone" ] || return
+	read -r t < "$zone" || return
+	c=$((t / 1000))
+	if [ "$c" -ge 85 ]; then item "" "${c}°C" "$A"; else item "" "${c}°C"; fi
+}
+
+m_load() { local l; read -r l _ < /proc/loadavg && item "" "$l"; }
+
+m_bright() {
+	local d cur max
+	for d in /sys/class/backlight/*; do
+		[ -r "$d/brightness" ] || continue
+		read -r cur < "$d/brightness"; read -r max < "$d/max_brightness"
+		[ "${max:-0}" -gt 0 ] && item "" "$(( (100 * cur) / max ))%"
+		return
+	done
+}
+
+m_vol() {
+	local out level icon=""
+	if have wpctl; then
+		out="$(wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null)" || return
+		level="$(awk '{printf "%d", $2 * 100}' <<< "$out")%"
+		case "$out" in *MUTED*) icon=""; level="mute" ;; esac
+	elif have pactl; then
+		level="$(pactl get-sink-volume @DEFAULT_SINK@ 2>/dev/null | awk -F'/' 'NR==1{gsub(/ /,"",$2); print $2}')"
+		[ -n "$level" ] || return
+		[ "$(pactl get-sink-mute @DEFAULT_SINK@ 2>/dev/null)" = "Mute: yes" ] && { icon=""; level="mute"; }
+	elif have amixer; then
+		out="$(amixer get Master 2>/dev/null | awk -F'[][]' '/%/{print $2, $6; exit}')"
+		[ -n "$out" ] || return
+		level="${out% *}"
+		[ "${out#* }" = off ] && { icon=""; level="mute"; }
+	else
+		return
+	fi
+	item "$icon" "$level"
+}
+
+m_mic() {
+	have wpctl || return
+	local out
+	out="$(wpctl get-volume @DEFAULT_AUDIO_SOURCE@ 2>/dev/null)" || return
+	case "$out" in *MUTED*) item "" "off" "$A" ;; *) item "" "on" ;; esac
+}
+
+default_iface() { ip route show default 2>/dev/null | awk 'NR==1{for(i=1;i<=NF;i++) if($i=="dev") print $(i+1)}'; }
+
+m_net() {
+	local iface ssid
+	iface="$(default_iface)"
+	[ -n "$iface" ] || { item "" "offline" "$A"; return; }
+	if [ -d "/sys/class/net/$iface/wireless" ]; then
+		ssid="$(iwgetid -r 2>/dev/null)"
+		[ -n "$ssid" ] || ssid="$(nmcli -t -f active,ssid dev wifi 2>/dev/null | awk -F: '$1=="yes"{print $2; exit}')"
+		item "" "${ssid:-wifi}"
+	else
+		item "" "$iface"
+	fi
+}
+
+m_ip() {
+	local iface ip
+	iface="$(default_iface)"; [ -n "$iface" ] || return
+	ip="$(ip -4 -o addr show dev "$iface" 2>/dev/null | awk '{sub(/\/.*/,"",$4); print $4; exit}')"
+	[ -n "$ip" ] && item "" "$ip"
+}
+
+human() { # bytes per second -> 12K / 1.4M
+	local b=$1
+	if [ "$b" -ge 1048576 ]; then printf '%d.%dM' $((b / 1048576)) $(( (b % 1048576) * 10 / 1048576 ))
+	else printf '%dK' $((b / 1024)); fi
+}
+
+m_speed() {
+	local iface rx tx prx ptx pts now dt
+	iface="$(default_iface)"; [ -n "$iface" ] || return
+	read -r rx < "/sys/class/net/$iface/statistics/rx_bytes" || return
+	read -r tx < "/sys/class/net/$iface/statistics/tx_bytes" || return
+	printf -v now '%(%s)T' -1
+	prx=$rx; ptx=$tx; pts=$((now - 2))
+	[ -r "$STATE/speed" ] && read -r prx ptx pts < "$STATE/speed"
+	printf '%s %s %s\n' "$rx" "$tx" "$now" > "$STATE/speed"
+	dt=$((now - pts)); [ "$dt" -gt 0 ] || dt=1
+	printf '%s %s' "$(item "" "$(human $(( (rx - prx) / dt )))")" "$(item "" "$(human $(( (tx - ptx) / dt )))")"
+}
+
+m_vpn() {
+	local n
+	for n in /sys/class/net/tun* /sys/class/net/wg* /sys/class/net/proton* /sys/class/net/tailscale*; do
+		[ -e "$n" ] && { item "" "vpn"; return; }
+	done
+}
+
+m_bat() {
+	local b cap state icon color="$I"
+	for b in /sys/class/power_supply/BAT*; do
+		[ -r "$b/capacity" ] || return
+		read -r cap < "$b/capacity"; read -r state < "$b/status"
+		if [ "$state" = Charging ]; then icon=""
+		elif [ "$cap" -ge 80 ]; then icon=""
+		elif [ "$cap" -ge 60 ]; then icon=""
+		elif [ "$cap" -ge 40 ]; then icon=""
+		elif [ "$cap" -ge 20 ]; then icon=""
+		else icon=""; fi
+		[ "$state" = Discharging ] && [ "$cap" -le 15 ] && color="$A"
+		item "$icon" "${cap}%" "$color"
+		return
+	done
+}
+
+m_uptime() {
+	local up
+	read -r up _ < /proc/uptime
+	up=${up%.*}
+	if [ "$up" -ge 86400 ]; then item "" "$((up / 86400))d $(( (up % 86400) / 3600 ))h"
+	else item "" "$((up / 3600))h $(( (up % 3600) / 60 ))m"; fi
+}
+
+m_kbd() {
+	have setxkbmap || return
+	local l
+	l="$(setxkbmap -query 2>/dev/null | awk '/layout/{print toupper($2)}')"
+	[ -n "$l" ] && item "" "${l%%,*}"
+}
+
+m_date() { local d; printf -v d '%(%a %d %b)T' -1; item "" "$d"; }
+
+m_clock() {
+	local fmt c
+	if [ "$BAR_24H" = 1 ]; then fmt='%H:%M'; else fmt='%I:%M %p'; fi
+	[ "$BAR_SECONDS" = 1 ] && fmt="${fmt%%:%M*}:%M:%S${fmt#*%M}"
+	printf -v c "%($fmt)T" -1
+	item "" "$c"
+}
+
+if [ -n "${1:-}" ]; then "m_$1"; echo; exit 0; fi
+
+line=""
+add() { # add <flag> <module>
+	[ "$1" = 1 ] || return 0
+	local out
+	out="$("m_$2")"
+	[ -n "$out" ] && line+="${line:+$SEP}$out"
+	return 0
+}
+
+add "$BAR_WEATHER" weather
+add "$BAR_CPU" cpu
+add "$BAR_RAM" ram
+add "$BAR_SWAP" swap
+add "$BAR_DISK" disk
+add "$BAR_TEMP" temp
+add "$BAR_LOAD" load
+add "$BAR_MIC" mic
+add "$BAR_BRIGHT" bright
+add "$BAR_VOL" vol
+add "$BAR_NET" net
+add "$BAR_IP" ip
+add "$BAR_SPEED" speed
+add "$BAR_VPN" vpn
+add "$BAR_BAT" bat
+add "$BAR_UPTIME" uptime
+add "$BAR_KBD" kbd
+add "$BAR_DATE" date
+add "$BAR_CLOCK" clock
+printf '%s ' "$line"

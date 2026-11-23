@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Rebuilds and installs the C programs. Only needed after you change source code,
+# palette, fonts, gaps and the like are applied live by: dwu-settings apply
+# usage: dwu-rebuild [all|dwm|st|dmenu|slstatus]... [--clean] [--backup|--no-backup]
+set -u
+. "$(dirname "$(readlink -f "$0")")/../lib/dwu-common.sh"
+load_settings
+
+targets=() want_backup=ask clean=0
+for arg in "$@"; do
+	case "$arg" in
+		--backup|--yes) want_backup=yes ;;
+		--no-backup) want_backup=no ;;
+		--clean) clean=1 ;;
+		all) targets=("${DWU_TOOLS[@]}") ;;
+		dwm|st|dmenu|slstatus) targets+=("$arg") ;;
+		*) log "usage: dwu-rebuild [all|dwm|st|dmenu|slstatus]... [--clean] [--backup|--no-backup]"; exit 1 ;;
+	esac
+done
+[ "${#targets[@]}" -gt 0 ] || targets=("${DWU_TOOLS[@]}")
+
+MAKE="$(make_cmd)"
+VARS="$(make_vars)"
+JOBS="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)"
+
+for tool in "${targets[@]}"; do
+	log "building $tool"
+	cd "$DWU_SRC/$tool" || exit 1
+	[ "$clean" = 1 ] && $MAKE clean >/dev/null 2>&1
+	# shellcheck disable=SC2086
+	$MAKE $VARS -j"$JOBS" || { log "build failed: $tool"; exit 1; }
+	# shellcheck disable=SC2086
+	as_root $MAKE $VARS PREFIX="$DWU_PREFIX" install || { log "install failed: $tool"; exit 1; }
+done
+
+if [ -n "${DISPLAY:-}" ]; then
+	for tool in "${targets[@]}"; do
+		case "$tool" in
+			dwm) pkill -HUP -x dwm 2>/dev/null || true ;;
+			slstatus) pkill -x slstatus 2>/dev/null; { slstatus >/dev/null 2>&1 & } ;;
+		esac
+	done
+fi
+
+case "$want_backup" in
+	yes) dwu-backup create --yes ;;
+	no) ;;
+	*) if [ "$BACKUP_ASK" = 1 ] && confirm "Create a backup of the new build?"; then dwu-backup create --yes; fi ;;
+esac

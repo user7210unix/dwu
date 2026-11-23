@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# Weather for the status bar. Location comes from your IP address (or a city you
+# choose), data from open-meteo.com. No API key, nothing is sent except coordinates.
+# usage: dwu-weather daemon          keep the cache fresh (started by autostart)
+#        dwu-weather refresh         fetch now
+#        dwu-weather city <name>     use a fixed city, "auto" goes back to IP lookup
+#        dwu-weather where           show the resolved location
+. "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../lib/dwu-common.sh"
+load_settings
+
+CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/dwu"
+mkdir -p "$CACHE"
+LOC="$CACHE/location"        # lat|lon|name
+OUT="$CACHE/weather.txt"     # ready for the status bar
+GEO_TTL=86400
+
+num() { grep -o "\"$1\": *-\?[0-9][0-9.]*" | head -1 | grep -o -- '-\?[0-9][0-9.]*$'; }
+str() { grep -o "\"$1\": *\"[^\"]*\"" | head -1 | sed 's/.*: *"\(.*\)"/\1/'; }
+get() { curl -fsS -m 8 -A "dwu" "$1" 2>/dev/null; }
+
+locate_ip() {
+	local json lat lon name
+	for url in "https://ipwho.is/" "https://ipapi.co/json/"; do
+		json="$(get "$url")" || continue
+		lat="$(num latitude <<< "$json")"; lon="$(num longitude <<< "$json")"
+		[ -n "$lat" ] && [ -n "$lon" ] || continue
+		name="$(str city <<< "$json")"
+		printf '%s|%s|%s\n' "$lat" "$lon" "$name" > "$LOC"
+		return 0
+	done
+	return 1
+}
+
+locate_city() {
+	local q="${1// /%20}" json lat lon name
+	json="$(get "https://geocoding-api.open-meteo.com/v1/search?name=$q&count=1&language=en&format=json")" || return 1
+	lat="$(num latitude <<< "$json")"; lon="$(num longitude <<< "$json")"
+	[ -n "$lat" ] && [ -n "$lon" ] || return 1
+	name="$(str name <<< "$json")"
+	printf '%s|%s|%s\n' "$lat" "$lon" "${name:-$1}" > "$LOC"
+}
+
+fresh_location() {
+	[ -s "$LOC" ] || return 1
+	[ -z "$(find "$LOC" -mmin +$((GEO_TTL / 60)) 2>/dev/null)" ]
+}
+
+ensure_location() {
+	if [ -n "$WEATHER_CITY" ]; then
+		grep -q "|$WEATHER_CITY$" "$LOC" 2>/dev/null && fresh_location && return 0
+		locate_city "$WEATHER_CITY" || return 1
+	else
+		fresh_location && return 0
+		locate_ip || [ -s "$LOC" ]
+	fi
+}
+
+# WMO weather code -> nerd font weather icon
+icon_for() {
+	local code=$1 day=$2
+	case "$code" in
+		0|1) [ "$day" = 0 ] && printf '' || printf '' ;;
+		2)   [ "$day" = 0 ] && printf '' || printf '' ;;
+		3)   printf '' ;;
+		45|48) printf '' ;;
+		51|53|55|56|57) printf '' ;;
+		61|63|65|66|67|80|81|82) printf '' ;;
+		71|73|75|77|85|86) printf '' ;;
+		95|96|99) printf '' ;;
+		*)   printf '' ;;
+	esac
+}
+
+refresh() {
+	local lat lon name json temp code day unit=celsius sym="C"
+	ensure_location || return 1
+	IFS='|' read -r lat lon name < "$LOC"
+	[ "$WEATHER_UNIT" = F ] && { unit=fahrenheit; sym="F"; }
+	json="$(get "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,weather_code,is_day&temperature_unit=$unit")" || return 1
+	temp="$(num temperature_2m <<< "$json")"; code="$(num weather_code <<< "$json")"; day="$(num is_day <<< "$json")"
+	[ -n "$temp" ] && [ -n "$code" ] || return 1
+	printf '%s%s %s%s°%s%s\n' '^C4^' "$(icon_for "$code" "${day:-1}")" '^C15^' "$(printf '%.0f' "$temp")" "$sym" '^d^' > "$OUT.tmp" \
+		&& mv "$OUT.tmp" "$OUT"
+}
+
+case "${1:-}" in
+	refresh) refresh ;;
+	daemon)
+		while :; do
+			load_settings
+			if [ "$BAR_WEATHER" = 1 ]; then
+				if refresh; then sleep 1800; else sleep 120; fi
+			else
+				sleep 60
+			fi
+		done ;;
+	city)
+		shift
+		name="$*"
+		[ -n "$name" ] || { log "usage: dwu-weather city <name|auto>"; exit 1; }
+		[ "$name" = auto ] && name=""
+		save_setting WEATHER_CITY "$name"
+		rm -f "$LOC"
+		WEATHER_CITY="$name"
+		refresh && { [ -s "$LOC" ] && IFS='|' read -r _ _ place < "$LOC"; notify "weather: ${place:-unknown}"; } || { notify "weather: could not find ${name:-your location}"; exit 1; } ;;
+	where)
+		ensure_location && { IFS='|' read -r lat lon name < "$LOC"; printf '%s (%s, %s)\n' "${name:-unknown}" "$lat" "$lon"; } || { log "no location"; exit 1; } ;;
+	"") cat "$OUT" 2>/dev/null ;;
+	*) log "usage: dwu-weather [daemon|refresh|city <name>|where]"; exit 1 ;;
+esac

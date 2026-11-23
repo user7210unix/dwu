@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -u
+. "$(dirname "$(readlink -f "$0")")/../lib/dwu-common.sh"
+load_settings
+
+BACKUP_DIR="$DWU_DATA_DIR/backups"
+mkdir -p "$BACKUP_DIR"
+
+create() {
+	local stamp archive
+	stamp="$(date +%Y%m%d-%H%M%S)"
+	archive="$BACKUP_DIR/dwu-$stamp.tar.gz"
+	tar -czf "$archive" \
+		--exclude='*.o' --exclude='.git' \
+		-C "$(dirname "$DWU_SRC")" "$(basename "$DWU_SRC")" \
+		-C "$(dirname "$DWU_CONF_DIR")" "$(basename "$DWU_CONF_DIR")"
+	log "backup: $archive"
+	ls -1t "$BACKUP_DIR"/dwu-*.tar.gz 2>/dev/null | tail -n +"$((BACKUP_KEEP + 1))" | while read -r old; do rm -f "$old"; done
+}
+
+list() { ls -1t "$BACKUP_DIR"/dwu-*.tar.gz 2>/dev/null | xargs -r -n1 basename; }
+
+restore() {
+	local name="${1:-}"
+	[ -n "$name" ] || name="$(list | pick 'restore backup')" || return 0
+	[ -n "$name" ] || return 0
+	confirm "Restore $name over the current sources and settings?" n || return 0
+	tar -xzf "$BACKUP_DIR/$name" -C "$(dirname "$DWU_SRC")" "$(basename "$DWU_SRC")"
+	tar -xzf "$BACKUP_DIR/$name" -C "$(dirname "$DWU_CONF_DIR")" "$(basename "$DWU_CONF_DIR")"
+	log "restored $name, run dwu-rebuild all to compile it"
+}
+
+case "${1:-list}" in
+	create) create ;;
+	list) list ;;
+	restore) restore "${2:-}" ;;
+	*) log "usage: dwu-backup [create|list|restore [name]]"; exit 1 ;;
+esac

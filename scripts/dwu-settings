@@ -1,0 +1,346 @@
+#!/usr/bin/env bash
+set -u
+. "$(dirname "$(readlink -f "$0")")/../lib/dwu-common.sh"
+load_settings
+
+FONT_CATEGORIES=$'  Monospace (Nerd Fonts)|mono\n  Display and UI (clean, mac like)|display\n  Handwriting and classic (pairs with Claret)|hand'
+TERM_SIZES=$'9\n10\n11\n12\n13\n14\n16'
+UI_SIZES=$'9\n10\n11\n12\n13'
+PICOM_RADIUS_CHOICES=$'0\n4\n8\n12\n16'
+PICOM_SHADOW_RADIUS_CHOICES=$'8\n12\n14\n20\n28'
+PICOM_BLUR_CHOICES=$'2\n3\n5\n7\n9'
+PICOM_OPACITY_CHOICES=$'1.0\n0.97\n0.94\n0.90\n0.85\n0.80'
+
+onoff() { [ "$1" = 1 ] && printf on || printf off; }
+flip()  { [ "$1" = 1 ] && printf 0 || printf 1; }
+
+ensure_icon_font() {
+	fc-list | grep -qi "Symbols Nerd Font" && return 0
+	local tmp dest="$DWU_FONT_DIR/NerdFontsSymbolsOnly"
+	tmp="$(mktemp -d)"
+	mkdir -p "$dest"
+	curl -fL --progress-bar -o "$tmp/icons.zip" "$DWU_ICON_ZIP_URL" && unzip -oq "$tmp/icons.zip" -d "$dest"
+	rm -rf "$tmp"
+	fc-cache -f "$DWU_FONT_DIR"
+}
+
+font_family_of() {
+	local dir="$1" file
+	file="$(find "$dir" \( -name '*NerdFontMono-Regular*' -o -name '*Mono-Regular*' \) \( -name '*.ttf' -o -name '*.otf' \) | head -n1)"
+	[ -n "$file" ] || file="$(find "$dir" \( -name '*.ttf' -o -name '*.otf' \) | head -n1)"
+	[ -n "$file" ] && fc-scan --format '%{family[0]}\n' "$file" | head -n1
+}
+
+install_font() {
+	local label="$1" kind="$2" source="$3" dest tmp url
+	dest="$DWU_FONT_DIR/$(printf '%s' "$label" | tr ' ' '-')"
+	if [ ! -d "$dest" ] || [ -z "$(ls -A "$dest" 2>/dev/null)" ]; then
+		mkdir -p "$dest"
+		tmp="$(mktemp -d)"
+		notify "Downloading $label"
+		case "$kind" in
+			nerd) curl -fL -o "$tmp/font.zip" "$DWU_NERD_URL/$source.zip" && unzip -oq "$tmp/font.zip" -d "$dest" ;;
+			url)
+				for url in $source; do
+					case "$url" in
+						*.zip) curl -fL -o "$tmp/font.zip" "$url" && unzip -oq "$tmp/font.zip" -d "$dest" ;;
+						*) curl -fL -o "$dest/$(basename "${url%%\?*}" | sed 's/%5B/[/g;s/%5D/]/g;s/,/_/g')" "$url" ;;
+					esac
+				done ;;
+		esac
+		rm -rf "$tmp"
+		fc-cache -f "$DWU_FONT_DIR"
+	fi
+	font_family_of "$dest"
+}
+
+menu_fonts() {
+	local cat_line category entry label kind source family role
+	cat_line="$(printf '%s\n' "$FONT_CATEGORIES" | cut -d'|' -f1 | pick 'font category')" || return 0
+	[ -n "$cat_line" ] || return 0
+	category="$(printf '%s\n' "$FONT_CATEGORIES" | awk -F'|' -v c="$cat_line" '$1==c{print $2}')"
+	entry="$(awk -F'|' -v c="$category" '$1==c{print $2}' "$DWU_SRC/fonts/fonts.list" | pick 'font')" || return 0
+	[ -n "$entry" ] || return 0
+	IFS='|' read -r _ label kind source < <(awk -F'|' -v c="$category" -v l="$entry" '$1==c && $2==l' "$DWU_SRC/fonts/fonts.list")
+	ensure_icon_font
+	family="$(install_font "$label" "$kind" "$source")"
+	[ -n "$family" ] || { notify "font install failed: $label"; return 0; }
+	role="$(printf '  Terminal (st)\n  Interface (bar, dmenu)\n  Both\n' | pick 'use for')" || return 0
+	role="$(strip_icon "$role")"
+	case "$role" in
+		Terminal*) save_setting FONT_TERM_FAMILY "$family" ;;
+		Interface*) save_setting FONT_UI_FAMILY "$family" ;;
+		Both) save_setting FONT_TERM_FAMILY "$family"; save_setting FONT_UI_FAMILY "$family" ;;
+		*) return 0 ;;
+	esac
+	load_settings
+	apply_all
+}
+
+menu_sizes() {
+	local which size
+	which="$(printf '  Terminal size\n  Interface size\n' | pick 'size')" || return 0
+	which="$(strip_icon "$which")"
+	case "$which" in
+		Terminal*) size="$(printf '%s\n' "$TERM_SIZES" | pick 'terminal size')" && save_setting FONT_TERM_SIZE "$size" ;;
+		Interface*) size="$(printf '%s\n' "$UI_SIZES" | pick 'interface size')" && save_setting FONT_UI_SIZE "$size" ;;
+	esac
+	load_settings
+	apply_all
+}
+
+menu_palette() {
+	local line slug
+	line="$(palette_list | cut -d'|' -f2 | pick 'palette')" || return 0
+	[ -n "$line" ] || return 0
+	slug="$(palette_list | awk -F'|' -v n="$line" '$2==n{print $1}')"
+	save_setting PALETTE "$slug"
+	apply_all
+}
+
+menu_picom() {
+	local choice value
+	while true; do
+		load_settings
+		choice="$(cat <<MENU | pick 'picom'
+  Compositor: $(onoff "$PICOM_ENABLE")
+  Backend: $PICOM_BACKEND
+  Vsync: $(onoff "$PICOM_VSYNC")
+  Shadows: $(onoff "$PICOM_SHADOW")
+  Shadow radius: $PICOM_SHADOW_RADIUS
+  Blur: $(onoff "$PICOM_BLUR")
+  Blur strength: $PICOM_BLUR_STRENGTH
+  Opacity active: $PICOM_OPACITY_ACTIVE
+  Opacity inactive: $PICOM_OPACITY_INACTIVE
+  Corner radius: $PICOM_CORNER_RADIUS
+  Fading: $(onoff "$PICOM_FADE")
+  Back
+MENU
+)" || return 0
+		choice="$(strip_icon "$choice")"
+		case "$choice" in
+			Compositor*) save_setting PICOM_ENABLE "$(flip "$PICOM_ENABLE")" ;;
+			Backend*) value="$(printf 'auto\nglx\nxrender\n' | pick 'backend')" && save_setting PICOM_BACKEND "$value" ;;
+			Vsync*) save_setting PICOM_VSYNC "$(flip "$PICOM_VSYNC")" ;;
+			Shadows*) save_setting PICOM_SHADOW "$(flip "$PICOM_SHADOW")" ;;
+			"Shadow radius"*) value="$(printf '%s\n' "$PICOM_SHADOW_RADIUS_CHOICES" | pick 'shadow radius')" && save_setting PICOM_SHADOW_RADIUS "$value" ;;
+			Blur:*) save_setting PICOM_BLUR "$(flip "$PICOM_BLUR")" ;;
+			"Blur strength"*) value="$(printf '%s\n' "$PICOM_BLUR_CHOICES" | pick 'blur strength')" && save_setting PICOM_BLUR_STRENGTH "$value" ;;
+			"Opacity active"*) value="$(printf '%s\n' "$PICOM_OPACITY_CHOICES" | pick 'active opacity')" && save_setting PICOM_OPACITY_ACTIVE "$value" ;;
+			"Opacity inactive"*) value="$(printf '%s\n' "$PICOM_OPACITY_CHOICES" | pick 'inactive opacity')" && save_setting PICOM_OPACITY_INACTIVE "$value" ;;
+			"Corner radius"*) value="$(printf '%s\n' "$PICOM_RADIUS_CHOICES" | pick 'corner radius')" && save_setting PICOM_CORNER_RADIUS "$value" ;;
+			Fading*) save_setting PICOM_FADE "$(flip "$PICOM_FADE")" ;;
+			*) return 0 ;;
+		esac
+		load_settings
+		load_palette "$PALETTE"
+		write_picom
+		restart_picom
+	done
+}
+
+menu_backup() {
+	local choice
+	choice="$(printf '  Create backup now\n  List backups\n  Restore backup\n  Back\n' | pick 'backup')" || return 0
+	choice="$(strip_icon "$choice")"
+	case "$choice" in
+		Create*) dwu-backup create --yes ;;
+		List*) dwu-backup list | pick 'backups' >/dev/null ;;
+		Restore*) dwu-backup restore ;;
+	esac
+}
+
+checkbox() { # checkbox <0|1> <label>
+	if [ "$1" = 1 ]; then printf '  %s\n' "$2"; else printf '  %s\n' "$2"; fi
+}
+
+apply_dwm() {
+	load_settings
+	load_palette "$PALETTE"
+	write_dwm_rc
+	[ -n "${DISPLAY:-}" ] && pkill -HUP -x dwm 2>/dev/null
+	return 0
+}
+
+BAR_ITEMS=$'Weather|BAR_WEATHER
+CPU usage|BAR_CPU
+Memory|BAR_RAM
+Swap|BAR_SWAP
+Disk usage|BAR_DISK
+Temperature|BAR_TEMP
+Load average|BAR_LOAD
+Microphone|BAR_MIC
+Brightness|BAR_BRIGHT
+Volume|BAR_VOL
+Network name|BAR_NET
+IP address|BAR_IP
+Network speed|BAR_SPEED
+VPN|BAR_VPN
+Battery|BAR_BAT
+Uptime|BAR_UPTIME
+Keyboard layout|BAR_KBD
+Date|BAR_DATE
+Clock|BAR_CLOCK'
+
+menu_bar() {
+	local choice label key value
+	while true; do
+		load_settings
+		choice="$(
+			while IFS='|' read -r label key; do checkbox "${!key}" "$label"; done <<< "$BAR_ITEMS"
+			printf '  Clock format: %s\n' "$([ "$BAR_24H" = 1 ] && echo 24h || echo 12h)"
+			checkbox "$BAR_SECONDS" "Show seconds"
+			printf '  Separator: %s\n' "$BAR_SEP"
+			printf '  Weather unit: %s\n' "$WEATHER_UNIT"
+			printf '  Weather location: %s\n' "${WEATHER_CITY:-auto (from IP)}"
+			printf '  Back\n'
+		)"
+		choice="$(printf '%s\n' "$choice" | pick 'status bar')" || return 0
+		choice="$(strip_icon "$choice")"
+		case "$choice" in
+			"Clock format"*) save_setting BAR_24H "$(flip "$BAR_24H")" ;;
+			"Show seconds") save_setting BAR_SECONDS "$(flip "$BAR_SECONDS")" ;;
+			Separator*) value="$(printf 'space\npipe\ndot\nslash\n' | pick 'separator')" && save_setting BAR_SEP "$value" ;;
+			"Weather unit"*) save_setting WEATHER_UNIT "$([ "$WEATHER_UNIT" = C ] && echo F || echo C)"; dwu-weather refresh >/dev/null 2>&1 & ;;
+			"Weather location"*)
+				value="$(ask_text 'city (empty = auto from IP)')" || continue
+				dwu-weather city "${value:-auto}" ;;
+			Back|"") return 0 ;;
+			*)
+				key="$(awk -F'|' -v l="$choice" '$1==l{print $2}' <<< "$BAR_ITEMS")"
+				[ -n "$key" ] || return 0
+				save_setting "$key" "$(flip "${!key}")"
+				[ "$key" = BAR_WEATHER ] && { dwu-weather refresh >/dev/null 2>&1 & } ;;
+		esac
+	done
+}
+
+BRAND_ICONS=$'  Terminal
+  Linux
+  Arch
+  Apple
+  Bolt
+  Heart
+  Cloud
+  Fire
+  Star
+  Globe
+  None'
+
+menu_dwm() {
+	local choice value
+	while true; do
+		load_settings
+		choice="$(cat <<MENU | pick 'window manager'
+  Bar: $(onoff "$DWM_BAR_VISIBLE")
+  Bar position: $DWM_BAR_POSITION
+  Bar style: $DWM_BAR_STYLE
+  Bar height: $DWM_BAR_HEIGHT
+  Bar opacity: $(( DWM_BAR_ALPHA * 100 / 255 ))%
+  Brand: $(onoff "$DWM_BRAND_SHOW")
+  Brand text: ${DWM_BRAND_TEXT:-none}
+  Brand icon: ${DWM_BRAND_ICON:-none}
+  System tray: $(onoff "$DWM_SYSTRAY")
+  Gaps: $DWM_GAPS
+  Smart gaps: $(onoff "$DWM_SMARTGAPS")
+  Border width: $DWM_BORDER
+  Back
+MENU
+)" || return 0
+		choice="$(strip_icon "$choice")"
+		case "$choice" in
+			"Bar: "*) save_setting DWM_BAR_VISIBLE "$(flip "$DWM_BAR_VISIBLE")" ;;
+			"Bar position"*) value="$(printf 'top\nbottom\n' | pick 'bar position')" && save_setting DWM_BAR_POSITION "$value" ;;
+			"Bar style"*) value="$(printf 'floating\nflush\n' | pick 'bar style')" && save_setting DWM_BAR_STYLE "$value" ;;
+			"Bar height"*) value="$(printf '24\n28\n30\n34\n38\n' | pick 'bar height')" && save_setting DWM_BAR_HEIGHT "$value" ;;
+			"Bar opacity"*)
+				value="$(printf '100\n90\n80\n70\n50\n' | pick 'opacity %')" && save_setting DWM_BAR_ALPHA "$(( value * 255 / 100 ))" ;;
+			Brand:*) save_setting DWM_BRAND_SHOW "$(flip "$DWM_BRAND_SHOW")" ;;
+			"Brand text"*) value="$(ask_text 'brand text (empty = icon only)')" || continue; save_setting DWM_BRAND_TEXT "$value" ;;
+			"Brand icon"*)
+				value="$(printf '%s\n' "$BRAND_ICONS" | pick 'brand icon')" || continue
+				case "$value" in *None) value="" ;; *) value="${value%%  *}" ;; esac
+				save_setting DWM_BRAND_ICON "$value" ;;
+			"System tray"*) save_setting DWM_SYSTRAY "$(flip "$DWM_SYSTRAY")" ;;
+			Gaps*) value="$(printf '0\n4\n8\n10\n14\n20\n' | pick 'gaps')" && save_setting DWM_GAPS "$value" ;;
+			"Smart gaps"*) save_setting DWM_SMARTGAPS "$(flip "$DWM_SMARTGAPS")" ;;
+			"Border width"*) value="$(printf '0\n1\n2\n3\n4\n' | pick 'border width')" && save_setting DWM_BORDER "$value" ;;
+			Back|"") return 0 ;;
+			*) return 0 ;;
+		esac
+		apply_dwm
+	done
+}
+
+main_menu() {
+	local choice
+	while true; do
+		load_settings
+		choice="$(cat <<MENU | pick 'dwu'
+  Palette
+  Fonts
+  Font sizes
+  Status bar
+  Window manager
+  Picom
+  Wallpaper
+  Display
+  Firefox CSS
+  Rebuild all
+  Backup and restore
+  Apply all
+  Quit
+MENU
+)" || return 0
+		choice="$(strip_icon "$choice")"
+		case "$choice" in
+			Palette) menu_palette ;;
+			Fonts) menu_fonts ;;
+			"Font sizes") menu_sizes ;;
+			"Status bar") menu_bar ;;
+			"Window manager") menu_dwm ;;
+			Picom) menu_picom ;;
+			Wallpaper) dwu-wallpaper menu ;;
+			Display) dwu-display menu ;;
+			"Firefox CSS") load_palette "$PALETTE"; write_firefox_css; notify "Firefox CSS written, restart Firefox" ;;
+			"Rebuild all") dwu-rebuild all ;;
+			"Backup and restore") menu_backup ;;
+			"Apply all") apply_all ;;
+			*) return 0 ;;
+		esac
+	done
+}
+
+usage() {
+	cat <<TXT
+dwu-settings [command]
+  menu                 interactive menu (default, dmenu in X, text menu in a tty)
+  apply                regenerate and apply palette, fonts, dwm, picom, dunst, GTK, Thunar, Firefox CSS
+  palette <slug>       switch palette
+  list-palettes        print available palettes
+  fonts-default        install JetBrains Mono Nerd Font, Inter and the Nerd symbols font
+  set <KEY> <VALUE>    change a value in settings.conf, then apply
+  font <term|ui> <family>
+TXT
+}
+
+case "${1:-menu}" in
+	menu) main_menu ;;
+	apply) apply_all ;;
+	palette) save_setting PALETTE "${2:?palette slug}"; apply_all ;;
+	list-palettes) palette_list ;;
+	fonts-default)
+		ensure_icon_font
+		family="$(install_font 'JetBrains Mono' nerd JetBrainsMono)"; [ -n "$family" ] && save_setting FONT_TERM_FAMILY "$family"
+		family="$(install_font Inter url "$(awk -F'|' '$2=="Inter"{print $4}' "$DWU_SRC/fonts/fonts.list")")"; [ -n "$family" ] && save_setting FONT_UI_FAMILY "$family"
+		apply_all ;;
+	set) save_setting "${2:?key}" "${3:?value}"; apply_all ;;
+	font)
+		case "${2:-}" in
+			term) save_setting FONT_TERM_FAMILY "${3:?family}" ;;
+			ui) save_setting FONT_UI_FAMILY "${3:?family}" ;;
+			*) usage; exit 1 ;;
+		esac
+		apply_all ;;
+	*) usage ;;
+esac
