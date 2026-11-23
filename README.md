@@ -1,6 +1,6 @@
 # DWU
 
-dwm for user7210unix. A patched dwm 6.8 with st, dmenu, slstatus, picom, dunst and a Firefox userChrome, all driven by nine palettes and one settings script.
+A patched dwm 6.8 with st, dmenu, slstatus, picom, dunst and a Firefox userChrome, all driven by nine palettes and one settings script.
 
 ## Install
 
