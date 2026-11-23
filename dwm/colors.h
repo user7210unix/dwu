@@ -1,0 +1,7 @@
+#define DWU_BG      "#092328"
+#define DWU_SURFACE "#12544F"
+#define DWU_SELECT  "#12544F"
+#define DWU_ACCENT  "#2A835F"
+#define DWU_FG      "#8BBB92"
+#define DWU_DIM     "#67966C"
+#define DWU_URGENT  "#D06C75"
