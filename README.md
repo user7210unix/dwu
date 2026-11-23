@@ -5,13 +5,13 @@ A patched dwm 6.8 with st, dmenu, slstatus, picom, dunst and a Firefox userChrom
 ## Install
 
 ```
-curl -fsSL https://raw.githubusercontent.com/user7210unix/dwm/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/user7210unix/dwu/main/install.sh | bash
 ```
 
 The installer shows a section menu: deps, build, fonts, session, firefox, zsh, laptop, uninstall. Unattended:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/user7210unix/dwm/main/install.sh | bash -s -- --all --yes
+curl -fsSL https://raw.githubusercontent.com/user7210unix/dwu/main/install.sh | bash -s -- --all --yes
 ```
 
 From a local checkout just run `./install.sh`, it builds that checkout and links the `dwu-*` scripts into `/usr/local/bin`.
