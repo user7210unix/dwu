@@ -38,7 +38,7 @@ splash() {
   |____/    \_/\_/    \___/
 
 ART
-	printf '%s  dwm for user7210unix, st, dmenu, slstatus, picom%s\n' "$C_TEXT" "$C_RESET"
+	printf '%s  dwm, st, dmenu, slstatus, picom%s\n' "$C_TEXT" "$C_RESET"
 	printf '%s  nine palettes, nerd fonts, one command%s\n\n' "$C_DIM" "$C_RESET"
 }
 
